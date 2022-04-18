@@ -12,4 +12,4 @@ In our [separate work](https://github.com/ido90/CeSoR), we demonstrate the use o
 
 | <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_sampling.png" width="260"> <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_optimization.png" width="260"> |
 | :--: |
-| CEM for sampling (left): the mean of the sample distribution (blue) aims to coincide with the mean of the tail of the original distribution (black). CEM for optimization (right): the mean of the sample distribution aims to be minimized.   (images from `tutorial.ipynb`) |
+| **CEM for sampling** (left): the mean of the sample distribution (blue) aims to coincide with the mean of the tail of the original distribution (black). **CEM for optimization** (right): the mean of the sample distribution aims to be minimized.   (images from `tutorial.ipynb`) |
