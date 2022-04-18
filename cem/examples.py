@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy import stats
-from CEM import CEM
+from cem import CEM
 
 
 class CEM_Ber(CEM):
