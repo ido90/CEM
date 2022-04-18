@@ -1,0 +1,10 @@
+__pycache__
+.ipynb_checkpoints/
+.idea/
+
+models/
+others/
+
+cem/__pycache__/
+cem/example/__pycache__/
+cem/example/.ipynb_checkpoints/
