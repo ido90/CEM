@@ -8,6 +8,8 @@ The exact implementation of the CEM depends on the problem setup.
 This repo provides a general implementation as an abstract class, where a concrete use requires writing a simple, small inherited class.
 The attached [`tutorial.ipynb`](https://github.com/ido90/CEM/blob/master/tutorial.ipynb) provides a more detailed background on the CEM and on this package, along with usage examples.
 
+**Installation**: `pip install cross-entropy-method`.
+
 In our [separate work](https://github.com/ido90/CeSoR), we demonstrate the use of the CEM for the more realistic problem of sampling "difficult" environment-conditions in risk-averse reinforcement learning. There, *D_p* determines the distribution of the environment-conditions, *p0* corresponds to the original distribution (or test distribution), and *R(x; agent)* is the return function of the agent given the conditions *x*.
 
 | <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_sampling.png" width="260"> <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_optimization.png" width="260"> |
