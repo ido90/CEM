@@ -20,6 +20,6 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
     ],
     python_requires='>=3.5',
-    py_modules=["cem"],
+    py_modules=["cross_entropy_method"],
     install_requires = ["numpy","scipy","pandas"]
 )

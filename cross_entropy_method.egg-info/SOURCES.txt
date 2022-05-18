@@ -1,9 +1,9 @@
 LICENSE
 README.md
 setup.py
-cem/CEM.py
-cem/__init__.py
-cem/examples.py
+cross_entropy_method/CEM.py
+cross_entropy_method/__init__.py
+cross_entropy_method/examples.py
 cross_entropy_method.egg-info/PKG-INFO
 cross_entropy_method.egg-info/SOURCES.txt
 cross_entropy_method.egg-info/dependency_links.txt
