@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="cross-entropy-method",
-    version="0.0.1",
+    version="0.0.2",
     license='MIT',
     author="Ido Greenberg",
     description="The Cross-Entropy Method for either rare-event sampling or optimization.",
