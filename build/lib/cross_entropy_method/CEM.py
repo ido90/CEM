@@ -50,7 +50,7 @@ import copy, warnings
 class CEM:
     def __init__(self, phi0, batch_size=0, ref_mode='train', ref_q=None, ref_alpha=0.05,
                  n_orig_per_batch=None, min_batch_update=0.2, force_min_samples=True,
-                 w_clip=0, title='CEM'):
+                 soft_update=0, w_clip=0, title='CEM'):
         self.title = title
         self.default_dist_titles = None
         self.default_samp_titles = None
@@ -63,6 +63,20 @@ class CEM:
         # Number of samples to draw before updating distribution.
         # 0 is interpreted as infinity.
         self.batch_size = batch_size
+        
+        # When updating the distribution parameter phi, average the new phi
+        # with the previous one, to make the update smoother.
+        # Should be within [0,1) (0=only new phi; 1=only previous phi).
+        self.soft_update = soft_update
+        if self.soft_update > 0:
+            try:
+                null = self.soft_update*phi0 + (1-self.soft_update)*phi0
+            except:
+                print(phi0)
+                warnings.warn(f'If soft_update>0, phi must be of a type that '
+                               'supports addition and scalar-multiplication '
+                               '(e.g., a numpy array).')
+                raise
 
         # Clip the likelihood-ratio weights to the range [1/w_clip, w_clip].
         # If None or 0 - no clipping is done.
@@ -220,7 +234,7 @@ class CEM:
 
     ########   Update-related methods   ########
 
-    def update(self, score, save=True):
+    def update(self, score, save=False):
         self.scores[-1].append(score)
         self.update_count += 1
 
@@ -234,6 +248,9 @@ class CEM:
 
             if len(samples) > 0:
                 dist = self.update_sample_distribution(samples, weights)
+                if self.soft_update > 0:
+                    dist = self.soft_update * self.sample_dist[-1] + \
+                           (1-self.soft_update) * dist
             else:
                 dist = self.sample_dist[-1]
             self.sample_dist.append(dist)

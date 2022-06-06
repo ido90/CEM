@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy import stats
-from cem import CEM
+from cross_entropy_method import CEM
 
 
 class CEM_Ber(CEM):

@@ -1,3 +1,3 @@
 '''Cross Entropy Method for either tail-sampling or optimization.'''
-from cem.CEM import CEM
-from cem import examples
+from cross_entropy_method.CEM import CEM
+from cross_entropy_method import examples
