@@ -36,6 +36,14 @@ CEM:
             select_samples().
             update_sample_distribution(samples, weights).   [IMPLEMENTED BY USER]
 
+    sample_batch(): sample and shuffle a whole batch together (if reference samples
+                    are used, the shuffling can prevent them from concentrating in
+                    the beginning of the batch).
+        sample(): see above.
+    update_batch(scores): update a whole batch of samples (can only be called after
+                          sample_batch(), since the shuffled indices must be synced).
+        update(score): see above.
+
 Written by Ido Greenberg, 2022.
 '''
 
@@ -133,6 +141,7 @@ class CEM:
         self.sample_count = 0
         self.update_count = 0
         self.ref_scores = None
+        self.batch_shuffled_indices = None
 
         # Data
         self.sample_dist = []  # n_batches
@@ -209,6 +218,19 @@ class CEM:
                           f'{self.batch_size} scores for update)')
         return x, w
 
+    def sample_batch(self, n=None, shuffle=True):
+        if n is None: n = self.batch_size
+        samples = []
+        for i in range(n):
+            samples.append(self.sample())
+        if shuffle:
+            ids = list(np.random.permutation(n))
+            samples = [samples[i] for i in ids]
+            self.batch_shuffled_indices = [ids.index(i) for i in range(n)]
+        else:
+            self.batch_shuffled_indices = list(range(n))
+        return samples
+
     def get_weight(self, x, use_original_dist=False):
         if use_original_dist:
             return 1
@@ -259,6 +281,14 @@ class CEM:
             if save:
                 filename = save if isinstance(save, str) else None
                 self.save(filename)
+
+    def update_batch(self, scores, save=False):
+        if self.batch_shuffled_indices is None:
+            raise RuntimeError('update_batch() can only be called after sample_batch().')
+        n = len(scores)
+        for i in range(n):
+            self.update(scores[self.batch_shuffled_indices[i]], save)
+        self.batch_shuffled_indices = None
 
     def reset_batch(self):
         self.sampled_data.append([])
