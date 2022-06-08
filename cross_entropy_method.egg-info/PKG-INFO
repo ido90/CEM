@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cross-entropy-method
-Version: 0.0.2
+Version: 0.0.3
 Summary: The Cross-Entropy Method for either rare-event sampling or optimization.
 Home-page: https://github.com/ido90/CEM
 Author: Ido Greenberg

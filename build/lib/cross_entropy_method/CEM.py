@@ -36,6 +36,14 @@ CEM:
             select_samples().
             update_sample_distribution(samples, weights).   [IMPLEMENTED BY USER]
 
+    sample_batch(): sample and shuffle a whole batch together (if reference samples
+                    are used, the shuffling can prevent them from concentrating in
+                    the beginning of the batch).
+        sample(): see above.
+    update_batch(scores): update a whole batch of samples (can only be called after
+                          sample_batch(), since the shuffled indices must be synced).
+        update(score): see above.
+
 Written by Ido Greenberg, 2022.
 '''
 
@@ -48,9 +56,10 @@ import copy, warnings
 
 
 class CEM:
-    def __init__(self, phi0, batch_size=0, ref_mode='train', ref_q=None, ref_alpha=0.05,
-                 n_orig_per_batch=None, min_batch_update=0.2, force_min_samples=True,
-                 soft_update=0, w_clip=0, title='CEM'):
+    def __init__(self, phi0, batch_size=0, ref_mode=None, ref_q=None,
+                 ref_alpha=0.05, n_orig_per_batch=None, min_batch_update=0.2,
+                 force_min_samples=True, soft_update=0, soft_q_update=0,
+                 w_clip=0, title='CEM'):
         self.title = title
         self.default_dist_titles = None
         self.default_samp_titles = None
@@ -78,6 +87,11 @@ class CEM:
                                '(e.g., a numpy array).')
                 raise
 
+        # When updating the reference quantile, average the new estimate
+        # with the previous one, to make the update smoother.
+        # Should be within [0,1) (0=only new quantile; 1=only previous one).
+        self.soft_q_update = soft_q_update
+
         # Clip the likelihood-ratio weights to the range [1/w_clip, w_clip].
         # If None or 0 - no clipping is done.
         self.w_clip = w_clip
@@ -87,14 +101,19 @@ class CEM:
         # If req_q is not None, then ref_q is the constant value of the threshold.
         # Otherwise, it is determined by ref_mode:
         # - 'none': ignore reference scores.
-        # - 'train': every batch, draw the first n=n_orig_per_batch samples
-        #            from the original distribution instead of the updated one.
-        #            then use quantile(batch_scores[:n]; ref_alpha).
+        # - 'train_ref': every batch, draw the first n=n_orig_per_batch samples
+        #                from the original distribution instead of the updated one.
+        #                then use quantile(batch_scores[:n]; ref_alpha).
+        #                This is the default when w_clip>0, to reduce estimation bias.
+        # - 'train': weighted quantile over the whole batch:
+        #            quantile(batch_scores; ref_alpha, IS_weights).
         # - 'valid': use quantile(external_validation_scores; ref_alpha).
         #            in this case, update_ref_scores() must be called to
         #            feed reference scores before updating the distribution.
         # In CVaR optimization, ref_alpha would typically correspond to
         # the CVaR risk level.
+        if ref_mode is None:
+            ref_mode = 'train' if w_clip==0 else 'train_ref'
         self.ref_q = ref_q
         self.ref_mode = ref_mode
         self.ref_alpha = ref_alpha
@@ -111,7 +130,8 @@ class CEM:
                           f'{self.n_orig_per_batch} = original-dist samples per batch')
             self.n_orig_per_batch = self.batch_size
 
-        active_train_mode = self.ref_mode == 'train' and self.batch_size and self.ref_q is None
+        active_train_mode = \
+            self.ref_mode == 'train' and self.batch_size and self.ref_q is None
         if active_train_mode and self.n_orig_per_batch < 1:
             raise ValueError('"train" reference mode must come with a positive'
                              'number of original-distribution samples per batch.')
@@ -133,6 +153,7 @@ class CEM:
         self.sample_count = 0
         self.update_count = 0
         self.ref_scores = None
+        self.batch_shuffled_indices = None
 
         # Data
         self.sample_dist = []  # n_batches
@@ -209,6 +230,19 @@ class CEM:
                           f'{self.batch_size} scores for update)')
         return x, w
 
+    def sample_batch(self, n=None, shuffle=True):
+        if n is None: n = self.batch_size
+        samples = []
+        for i in range(n):
+            samples.append(self.sample())
+        if shuffle:
+            ids = list(np.random.permutation(n))
+            samples = [samples[i] for i in ids]
+            self.batch_shuffled_indices = [ids.index(i) for i in range(n)]
+        else:
+            self.batch_shuffled_indices = list(range(n))
+        return samples
+
     def get_weight(self, x, use_original_dist=False):
         if use_original_dist:
             return 1
@@ -260,6 +294,14 @@ class CEM:
                 filename = save if isinstance(save, str) else None
                 self.save(filename)
 
+    def update_batch(self, scores, save=False):
+        if self.batch_shuffled_indices is None:
+            raise RuntimeError('update_batch() can only be called after sample_batch().')
+        n = len(scores)
+        for i in range(n):
+            self.update(scores[self.batch_shuffled_indices[i]], save)
+        self.batch_shuffled_indices = None
+
     def reset_batch(self):
         self.sampled_data.append([])
         self.scores.append([])
@@ -276,9 +318,14 @@ class CEM:
         q_ref = -np.inf
         if self.ref_q is not None:
             q_ref = self.ref_q
+        elif self.ref_mode == 'train_ref':
+            q_ref = quantile(
+                self.scores[-1][:self.n_orig_per_batch],
+                self.ref_alpha, estimate_underlying_quantile=True)
         elif self.ref_mode == 'train':
-            q_ref = quantile(self.scores[-1][:self.n_orig_per_batch],
-                             self.ref_alpha, estimate_underlying_quantile=True)
+            q_ref = quantile(
+                self.scores[-1], self.ref_alpha, w=self.weights[-1],
+                estimate_underlying_quantile=True)
         elif self.ref_mode == 'valid':
             if self.ref_scores is None:
                 warnings.warn('ref_mode=valid, but no '
@@ -290,6 +337,11 @@ class CEM:
             q_ref = -np.inf
         else:
             warnings.warn(f'Invalid ref_mode: {self.ref_mode}')
+
+        # Soft-update reference quantile estimator
+        if self.soft_q_update>0 and len(self.ref_quantile)>0:
+            q_ref = self.soft_q_update * self.ref_quantile[-1] + \
+                   (1 - self.soft_q_update) * q_ref
 
         # Take the max over the two
         self.internal_quantile.append(q_int)
