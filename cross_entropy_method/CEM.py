@@ -131,9 +131,9 @@ class CEM:
             self.n_orig_per_batch = self.batch_size
 
         active_train_mode = \
-            self.ref_mode == 'train' and self.batch_size and self.ref_q is None
+            self.ref_mode == 'train_ref' and self.batch_size and self.ref_q is None
         if active_train_mode and self.n_orig_per_batch < 1:
-            raise ValueError('"train" reference mode must come with a positive'
+            raise ValueError('"train_ref" reference mode must come with a positive '
                              'number of original-distribution samples per batch.')
 
         # In a distribution update, use from the current batch at least
