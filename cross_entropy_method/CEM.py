@@ -440,15 +440,30 @@ class CEM:
         if ylab is None:
             ylab = 'score'
 
+        # Prepare tail calculations & labels according to the settings
+        #  (e.g., const threshold or quantile?)
         if self.ref_q is not None:
             cvar = lambda x, alpha: np.mean(x[x <= self.ref_q])
             cvar_lab = f'mean$\\{{x|x <= {self.ref_q}\\}}$'
+            def wcvar(x, w, alpha):
+                q = self.ref_q
+                ids = x <= q
+                x = x[ids]
+                w = w[ids]
+                return np.mean(x * w) / np.mean(w)
         elif self.ref_mode=='none':
             cvar = None
         else:
             cvar = lambda x, alpha: np.mean(np.sort(x)[:int(np.ceil(alpha*len(x)))])
             cvar_lab = f'CVaR$_{{{100*self.ref_alpha:.0f}\%}}$'
+            def wcvar(x, w, alpha):
+                q = quantile(x, alpha, w)
+                ids = x <= q
+                x = x[ids]
+                w = w[ids]
+                return np.mean(x * w) / np.mean(w)
 
+        # Calculate reference mean & tail-mean
         c1, c2 = self.get_data()
         c2['orig'] = c2.sample_id < self.n_orig_per_batch
         if self.n_orig_per_batch > 0:
@@ -458,7 +473,15 @@ class CEM:
                 cvar_orig = c2[c2.orig].groupby('batch').apply(
                     lambda d: cvar(d.score.values,self.ref_alpha))
                 ax.plot(cvar_orig, label=f'Reference {cvar_lab:s}')
+        else:
+            mean_orig = c2.groupby('batch').apply(lambda d: np.mean(d.score*d.weight)/d.weight.mean())
+            ax.plot(mean_orig, label='Reference mean (IS)')
+            if cvar is not None:
+                cvar_orig = c2.groupby('batch').apply(
+                    lambda d: wcvar(d.score.values,d.weight.values,self.ref_alpha))
+                ax.plot(cvar_orig, label=f'Reference {cvar_lab:s} (IS)')
 
+        # Calculate sample mean & tail-mean
         mean_samp = c2[~c2.orig].groupby('batch').apply(lambda d: d.score.mean())
         ax.plot(mean_samp, label='Sample mean')
         if cvar is not None:
@@ -468,7 +491,7 @@ class CEM:
 
         ax.set_xlabel('iteration', fontsize=15)
         ax.set_ylabel(ylab, fontsize=15)
-        ax.legend(fontsize=14)
+        ax.legend(fontsize=13)
         return ax
 
 
