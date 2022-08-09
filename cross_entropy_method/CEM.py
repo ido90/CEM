@@ -59,7 +59,7 @@ class CEM:
     def __init__(self, phi0, batch_size=0, ref_mode=None, ref_thresh=None,
                  ref_alpha=0.05, n_orig_per_batch=None, min_batch_update=0.2,
                  force_min_samples=True, soft_update=0, soft_q_update=0,
-                 w_clip=0, title='CEM'):
+                 w_clip=0, optim_mode=False, title='CEM'):
         self.title = title
         self.default_dist_titles = None
         self.default_samp_titles = None
@@ -68,6 +68,13 @@ class CEM:
         # This can be any object (e.g., list of distribution parameters),
         # depending on the implementation of the inherited class.
         self.original_dist = phi0
+
+        # Use the CEM for optimization rather than sampling.
+        self.optim_mode = optim_mode
+        if self.optim_mode:
+            ref_mode = 'none'
+            ref_thresh = None
+            w_clip = 1
 
         # Number of samples to draw before updating distribution.
         # 0 is interpreted as infinity.
@@ -94,11 +101,13 @@ class CEM:
 
         # Clip the likelihood-ratio weights to the range [1/w_clip, w_clip].
         # If None or 0 - no clipping is done.
+        if 0<w_clip<1:
+            w_clip = 1/w_clip
         self.w_clip = w_clip
 
         # How to use reference scores to determine the threshold for the
         # samples selected for distribution update?
-        # If req_q is not None, then ref_thresh is the constant value of the threshold.
+        # If ref_thresh is not None, then ref_thresh is the constant value of the threshold.
         # Otherwise, it is determined by ref_mode:
         # - 'none': ignore reference scores.
         # - 'train_ref': every batch, draw the first n=n_orig_per_batch samples
@@ -156,12 +165,14 @@ class CEM:
         self.sample_count = 0
         self.update_count = 0
         self.ref_scores = None
+        self.ref_indices = set()
         self.batch_shuffled_indices = None
 
         # Data
         self.sample_dist = []  # n_batches
         self.sampled_data = [[]]  # n_batches x batch_size
         self.weights = [[]]  # n_batches x batch_size
+        self.is_reference = [[]]  # n_batches x batch_size
         self.scores = [[]]  # n_batches x batch_size
         self.ref_quantile = []  # n_batches
         self.internal_quantile = []  # n_batches
@@ -175,10 +186,14 @@ class CEM:
         self.sample_count = 0
         self.update_count = 0
         self.ref_scores = None
+        if self.n_orig_per_batch > 0:
+            self.ref_indices = set(np.random.choice(
+                np.arange(self.batch_size), self.n_orig_per_batch, replace=False))
 
         self.sample_dist = [copy.copy(self.original_dist)]
         self.sampled_data = [[]]
         self.weights = [[]]
+        self.is_reference = [[]]
         self.scores = [[]]
         self.ref_quantile = []
         self.internal_quantile = []
@@ -195,8 +210,8 @@ class CEM:
             self.title, self.original_dist, self.batch_size, self.w_clip, self.ref_thresh,
             self.ref_mode, self.ref_alpha, self.n_orig_per_batch, self.min_batch_update,
             self.batch_count, self.sample_count, self.update_count, self.ref_scores,
-            self.sample_dist, self.sampled_data, self.weights, self.scores,
-            self.ref_quantile, self.internal_quantile, self.selected_samples,
+            self.sample_dist, self.sampled_data, self.weights, self.is_reference,
+            self.scores, self.ref_quantile, self.internal_quantile, self.selected_samples,
             self.n_update_samples
         )
         with open(filename, 'wb') as h:
@@ -210,12 +225,14 @@ class CEM:
         self.title, self.original_dist, self.batch_size, self.w_clip, self.ref_thresh, \
         self.ref_mode, self.ref_alpha, self.n_orig_per_batch, self.min_batch_update, \
         self.batch_count, self.sample_count, self.update_count, self.ref_scores, \
-        self.sample_dist, self.sampled_data, self.weights, self.scores, \
-        self.ref_quantile, self.internal_quantile, self.selected_samples, \
+        self.sample_dist, self.sampled_data, self.weights, self.is_reference, \
+        self.scores, self.ref_quantile, self.internal_quantile, self.selected_samples, \
         self.n_update_samples = obj
 
-    def is_original_dist(self):
-        return self.sample_count < self.n_orig_per_batch
+    def is_original_dist(self, shuffle=True):
+        if not shuffle:
+            return self.sample_count < self.n_orig_per_batch
+        return self.sample_count in self.ref_indices
 
     ########   Sampling-related methods   ########
 
@@ -226,6 +243,7 @@ class CEM:
         w = self.get_weight(x, orig_dist)
         self.sampled_data[-1].append(x)
         self.weights[-1].append(w)
+        self.is_reference[-1].append(orig_dist)
         self.sample_count += 1
         if 0 < self.batch_size < self.sample_count:
             warnings.warn(f'Drawn {self.sample_count}>{self.batch_size} samples '
@@ -309,9 +327,13 @@ class CEM:
         self.sampled_data.append([])
         self.scores.append([])
         self.weights.append([])
+        self.is_reference.append([])
         self.batch_count += 1
         self.sample_count = 0
         self.update_count = 0
+        if self.n_orig_per_batch > 0:
+            self.ref_indices = set(np.random.choice(
+                np.arange(self.batch_size), self.n_orig_per_batch, replace=False))
 
     def select_samples(self):
         # Get internal quantile
@@ -322,9 +344,10 @@ class CEM:
         if self.ref_thresh is not None:
             q_ref = self.ref_thresh
         elif self.ref_mode == 'train_ref':
+            ref_scores = [s for idx,s in enumerate(self.scores[-1])
+                          if idx in self.ref_indices]
             q_ref = quantile(
-                self.scores[-1][:self.n_orig_per_batch],
-                self.ref_alpha, estimate_underlying_quantile=True)
+                ref_scores, self.ref_alpha, estimate_underlying_quantile=True)
         elif self.ref_mode == 'train':
             q_ref = quantile(
                 self.scores[-1], self.ref_alpha, w=self.weights[-1],
@@ -419,15 +442,16 @@ class CEM:
                           for sample in batch]
                          for i,t in enumerate(sample_dimension_titles)}
 
-        w, s = self.weights, self.scores
+        w, s, is_ref = self.weights, self.scores, self.is_reference
         if n_batches and exclude_last_batch:
-            w, s = self.weights[:-1], self.scores[:-1]
+            w, s, is_ref = self.weights[:-1], self.scores[:-1], self.is_reference[:-1]
         d2_dict = dict(
             title=self.title,
             batch=np.repeat(np.arange(n_batches), bs),
             sample_id=n_batches*list(range(bs)),
             selected=np.concatenate(self.selected_samples),
             weight=np.concatenate(w),
+            is_ref=np.concatenate(is_ref),
             score=np.concatenate(s),
         )
         for k,v in samples.items():
@@ -468,27 +492,28 @@ class CEM:
 
         # Calculate reference mean & tail-mean
         c1, c2 = self.get_data()
-        c2['orig'] = c2.sample_id < self.n_orig_per_batch
-        if self.n_orig_per_batch > 0:
-            mean_orig = c2[c2.orig].groupby('batch').apply(lambda d: d.score.mean())
-            ax.plot(mean_orig, label='Reference mean')
-            if cvar is not None:
-                cvar_orig = c2[c2.orig].groupby('batch').apply(
-                    lambda d: cvar(d.score.values,self.ref_alpha))
-                ax.plot(cvar_orig, label=f'Reference {cvar_lab:s}')
-        else:
-            mean_orig = c2.groupby('batch').apply(lambda d: np.mean(d.score*d.weight)/d.weight.mean())
-            ax.plot(mean_orig, label='Reference mean (IS)')
-            if cvar is not None:
-                cvar_orig = c2.groupby('batch').apply(
-                    lambda d: wcvar(d.score.values,d.weight.values,self.ref_alpha))
-                ax.plot(cvar_orig, label=f'Reference {cvar_lab:s} (IS)')
+        if not self.optim_mode:
+            if self.n_orig_per_batch > 0:
+                mean_orig = c2[c2.is_ref].groupby('batch').apply(lambda d: d.score.mean())
+                ax.plot(mean_orig, label='Reference mean')
+                if cvar is not None:
+                    cvar_orig = c2[c2.is_ref].groupby('batch').apply(
+                        lambda d: cvar(d.score.values,self.ref_alpha))
+                    ax.plot(cvar_orig, label=f'Reference {cvar_lab:s}')
+            else:
+                mean_orig = c2.groupby('batch').apply(
+                    lambda d: np.mean(d.score*d.weight)/d.weight.mean())
+                ax.plot(mean_orig, label='Reference mean (IS)')
+                if cvar is not None:
+                    cvar_orig = c2.groupby('batch').apply(
+                        lambda d: wcvar(d.score.values,d.weight.values,self.ref_alpha))
+                    ax.plot(cvar_orig, label=f'Reference {cvar_lab:s} (IS)')
 
         # Calculate sample mean & tail-mean
-        mean_samp = c2[~c2.orig].groupby('batch').apply(lambda d: d.score.mean())
+        mean_samp = c2[~c2.is_ref].groupby('batch').apply(lambda d: d.score.mean())
         ax.plot(mean_samp, label='Sample mean')
         if cvar is not None:
-            cvar_samp = c2[~c2.orig].groupby('batch').apply(
+            cvar_samp = c2[~c2.is_ref].groupby('batch').apply(
                 lambda d: cvar(d.score.values,self.ref_alpha))
             ax.plot(cvar_samp, label=f'Sample {cvar_lab:s}')
 
