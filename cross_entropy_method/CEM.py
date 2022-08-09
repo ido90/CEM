@@ -56,7 +56,7 @@ import copy, warnings
 
 
 class CEM:
-    def __init__(self, phi0, batch_size=0, ref_mode=None, ref_q=None,
+    def __init__(self, phi0, batch_size=0, ref_mode=None, ref_thresh=None,
                  ref_alpha=0.05, n_orig_per_batch=None, min_batch_update=0.2,
                  force_min_samples=True, soft_update=0, soft_q_update=0,
                  w_clip=0, title='CEM'):
@@ -98,7 +98,7 @@ class CEM:
 
         # How to use reference scores to determine the threshold for the
         # samples selected for distribution update?
-        # If req_q is not None, then ref_q is the constant value of the threshold.
+        # If req_q is not None, then ref_thresh is the constant value of the threshold.
         # Otherwise, it is determined by ref_mode:
         # - 'none': ignore reference scores.
         # - 'train_ref': every batch, draw the first n=n_orig_per_batch samples
@@ -113,15 +113,18 @@ class CEM:
         # In CVaR optimization, ref_alpha would typically correspond to
         # the CVaR risk level.
         if ref_mode is None:
+            # By default, we deduce the quantile internally from the train samples;
+            # unless weights-clipping is used, in which case the quantile estimator
+            # is skewed, thus we prefer estimation only from reference train samples.
             ref_mode = 'train' if w_clip==0 else 'train_ref'
-        self.ref_q = ref_q
+        self.ref_thresh = ref_thresh
         self.ref_mode = ref_mode
         self.ref_alpha = ref_alpha
 
         # Number of samples to draw every batch from the original distribution
         # instead of the updated one. Either integer or ratio in (0,1).
         if n_orig_per_batch is None:
-            n_orig_per_batch = 0.2 if self.ref_q is None and self.ref_mode!='none' else 0
+            n_orig_per_batch = 0.2 if self.ref_thresh is None and self.ref_mode!='none' else 0
         self.n_orig_per_batch = n_orig_per_batch
         if 0<self.n_orig_per_batch<1:
             self.n_orig_per_batch = int(self.n_orig_per_batch*self.batch_size)
@@ -131,7 +134,7 @@ class CEM:
             self.n_orig_per_batch = self.batch_size
 
         active_train_mode = \
-            self.ref_mode == 'train_ref' and self.batch_size and self.ref_q is None
+            self.ref_mode == 'train_ref' and self.batch_size and self.ref_thresh is None
         if active_train_mode and self.n_orig_per_batch < 1:
             raise ValueError('"train_ref" reference mode must come with a positive '
                              'number of original-distribution samples per batch.')
@@ -189,7 +192,7 @@ class CEM:
         if filename is None: filename = f'{base_path}/{self.title}'
         filename += '.cem'
         obj = (
-            self.title, self.original_dist, self.batch_size, self.w_clip, self.ref_q,
+            self.title, self.original_dist, self.batch_size, self.w_clip, self.ref_thresh,
             self.ref_mode, self.ref_alpha, self.n_orig_per_batch, self.min_batch_update,
             self.batch_count, self.sample_count, self.update_count, self.ref_scores,
             self.sample_dist, self.sampled_data, self.weights, self.scores,
@@ -204,7 +207,7 @@ class CEM:
         filename += '.cem'
         with open(filename, 'rb') as h:
             obj = pkl.load(h)
-        self.title, self.original_dist, self.batch_size, self.w_clip, self.ref_q, \
+        self.title, self.original_dist, self.batch_size, self.w_clip, self.ref_thresh, \
         self.ref_mode, self.ref_alpha, self.n_orig_per_batch, self.min_batch_update, \
         self.batch_count, self.sample_count, self.update_count, self.ref_scores, \
         self.sample_dist, self.sampled_data, self.weights, self.scores, \
@@ -316,8 +319,8 @@ class CEM:
 
         # Get reference quantile from "external" data
         q_ref = -np.inf
-        if self.ref_q is not None:
-            q_ref = self.ref_q
+        if self.ref_thresh is not None:
+            q_ref = self.ref_thresh
         elif self.ref_mode == 'train_ref':
             q_ref = quantile(
                 self.scores[-1][:self.n_orig_per_batch],
@@ -442,11 +445,11 @@ class CEM:
 
         # Prepare tail calculations & labels according to the settings
         #  (e.g., const threshold or quantile?)
-        if self.ref_q is not None:
-            cvar = lambda x, alpha: np.mean(x[x <= self.ref_q])
-            cvar_lab = f'mean$\\{{x|x <= {self.ref_q}\\}}$'
+        if self.ref_thresh is not None:
+            cvar = lambda x, alpha: np.mean(x[x <= self.ref_thresh])
+            cvar_lab = f'mean$\\{{x|x <= {self.ref_thresh}\\}}$'
             def wcvar(x, w, alpha):
-                q = self.ref_q
+                q = self.ref_thresh
                 ids = x <= q
                 x = x[ids]
                 w = w[ids]
