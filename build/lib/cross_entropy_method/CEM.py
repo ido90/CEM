@@ -501,6 +501,9 @@ class CEM:
                         lambda d: cvar(d.score.values,self.ref_alpha))
                     ax.plot(cvar_orig, label=f'Reference {cvar_lab:s}')
             else:
+                if self.w_clip > 0:
+                    warnings.warn('Reference distribution reconstruction may be inaccurate '
+                                  'with clipped weights and without reference samples.')
                 mean_orig = c2.groupby('batch').apply(
                     lambda d: np.mean(d.score*d.weight)/d.weight.mean())
                 ax.plot(mean_orig, label='Reference mean (IS)')
@@ -521,6 +524,65 @@ class CEM:
         ax.set_ylabel(ylab, fontsize=15)
         ax.legend(fontsize=13)
         return ax
+
+    def show_tail_level(self, ax=None):
+        if ax is None:
+            ax = plt.subplots(1, 1, figsize=(5,3.5))[1]
+            ax.grid(color='k', linestyle=':', linewidth=0.3)
+
+        c1, c2 = self.get_data()
+
+        if self.n_orig_per_batch > 0:
+            tail_level = []
+            for b in range(c2.batch.values[-1]+1):
+                bb = c2[c2.batch==b]
+                sample_mean = bb[~bb.is_ref].score.mean()
+                refs = sorted(bb[bb.is_ref].score.values)
+                ref_means = np.cumsum(refs) / np.arange(1,len(refs)+1)
+                alpha = 100 * np.where(ref_means<=sample_mean)[0][-1] / len(ref_means)
+                tail_level.append(alpha)
+
+        else:
+            if self.w_clip > 0:
+                warnings.warn('Reference distribution reconstruction may be inaccurate '
+                              'with clipped weights and without reference samples.')
+
+            def wcvar(x, w, alpha):
+                q = quantile(x, alpha, w)
+                ids = x <= q
+                x = x[ids]
+                w = w[ids]
+                return np.mean(x * w) / np.mean(w)
+
+            tail_level = []
+            for b in range(c2.batch.values[-1]+1):
+                bb = c2[c2.batch==b]
+                sample_mean = bb[~bb.is_ref].score.mean()
+                x, w = bb.score.values, bb.weight.values
+                refs = np.array([wcvar(x,w,alpha) for alpha in np.linspace(0,1,101)])
+                alpha = np.where(refs<=sample_mean)[0][-1]
+                tail_level.append(alpha)
+
+        ax.plot(tail_level)
+        ax.set_ylim((-1, 101))
+        ax.set_xlabel('iteration', fontsize=15)
+        ax.set_ylabel('tail level [%]', fontsize=15)
+        ax.set_title(r'$\alpha$ | $mean$(sample)==$CVaR_{\alpha}$(ref)', fontsize=15)
+        return ax
+
+    def show_summary(self, axs=None, ylab=None):
+        if self.optim_mode:
+            return self.show_sampled_scores(axs, ylab)
+
+        if axs is None:
+            axs = plt.subplots(1, 2, figsize=(10,4))[1]
+            for i in range(2):
+                axs[i].grid(color='k', linestyle=':', linewidth=0.3)
+
+        self.show_sampled_scores(axs[0], ylab)
+        self.show_tail_level(axs[1])
+        plt.tight_layout()
+        return axs
 
 
 def quantile(x, q, w=None, is_sorted=False, estimate_underlying_quantile=False):
