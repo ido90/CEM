@@ -539,7 +539,8 @@ class CEM:
                 sample_mean = bb[~bb.is_ref].score.mean()
                 refs = sorted(bb[bb.is_ref].score.values)
                 ref_means = np.cumsum(refs) / np.arange(1,len(refs)+1)
-                alpha = 100 * np.where(ref_means<=sample_mean)[0][-1] / len(ref_means)
+                alphas = np.where(ref_means<=sample_mean)[0]
+                alpha = 0 if len(alphas)==0 else 100 * alphas[-1] / len(ref_means)
                 tail_level.append(alpha)
 
         else:
@@ -563,6 +564,8 @@ class CEM:
                 alpha = np.where(refs<=sample_mean)[0][-1]
                 tail_level.append(alpha)
 
+        if self.ref_thresh is None and not self.optim_mode:
+            ax.axhline(100*self.ref_alpha, color='k', linestyle='--')
         ax.plot(tail_level)
         ax.set_ylim((-1, 101))
         ax.set_xlabel('iteration', fontsize=15)
