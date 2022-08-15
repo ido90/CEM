@@ -10,9 +10,9 @@ The attached [`tutorial.ipynb`](https://github.com/ido90/CEM/blob/master/tutoria
 
 **Installation**: `pip install cross-entropy-method`.
 
-| <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_sampling.png" width="260"> <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_optimization.png" width="260"> |
+| <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_quantile_sampling.png" width="260"> <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_optimization.png" width="260"> |
 | :--: |
-| **CEM for sampling** (left): the mean of the sample distribution (blue) aims to coincide with the mean of the tail of the original distribution (black). **CEM for optimization** (right): the mean of the sample distribution aims to be minimized.   (images from [`tutorial.ipynb`](https://github.com/ido90/CEM/blob/master/tutorial.ipynb)) |
+| **CEM for sampling** (left): the mean of the sample distribution (green) shifts from the mean of the original distribution (blue) towards its 10%-tail (orange). **CEM for optimization** (right): the mean of the sample distribution aims to be minimized.   (images from [`tutorial.ipynb`](https://github.com/ido90/CEM/blob/master/tutorial.ipynb)) |
 
 ### Supporting non-stationary score functions
 
