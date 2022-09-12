@@ -455,7 +455,7 @@ class CEM:
             score=np.concatenate(s),
         )
         for k,v in samples.items():
-            d2_dict[k] = v
+            d2_dict[k] = v[:len(d2_dict['weight'])]
         d2 = pd.DataFrame(d2_dict)
 
         return d1, d2
