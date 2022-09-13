@@ -275,6 +275,10 @@ class CEM:
         dist = self.sample_dist[0] if orig_dist else self.sample_dist[-1]
         x = self.do_sample(dist)
         w = self.get_weight(x, orig_dist)
+        self.update_sample(x, w, orig_dist)
+        return x, w
+
+    def update_sample(self, x, w, orig_dist):
         self.sampled_data[-1].append(x)
         self.weights[-1].append(w)
         self.is_reference[-1].append(orig_dist)
@@ -283,7 +287,6 @@ class CEM:
             warnings.warn(f'Drawn {self.sample_count}>{self.batch_size} samples '
                           f'without updating (only {self.update_count}<'
                           f'{self.batch_size} scores for update)')
-        return x, w
 
     def sample_batch(self, n=None, shuffle=True):
         if n is None: n = self.batch_size
