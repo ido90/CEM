@@ -56,10 +56,44 @@ import copy, warnings
 
 
 class CEM:
-    def __init__(self, phi0, batch_size=0, ref_mode=None, ref_thresh=None,
-                 ref_alpha=0.05, n_orig_per_batch=None, min_batch_update=0.2,
-                 force_min_samples=True, soft_update=0, soft_q_update=0,
-                 w_clip=0, optim_mode=False, title='CEM'):
+    def __init__(
+            self,
+            # initial distribution parameters
+            phi0,
+
+            #########   General   #########
+            # number of samples between distribution updates
+            # (0 = no updates)
+            batch_size=0,
+            # optimization mode: force ref_mode='none' and w_clip=1
+            optim_mode=False,
+            # clip IS weights to the range (1/w_clip, w_clip)
+            # (0 = no clipping; 1 = no weights; 0<w_clip<1 will be inverted)
+            w_clip=0,
+            # experiment title
+            title='CEM',
+
+            #########   Sampling parameters   #########
+            # number of reference samples per batch, taken from the original distribution
+            n_orig_per_batch=None,
+
+            #########   Update-step parameters   #########
+            # where to estimate the reference-distribution from (see details below)
+            ref_mode=None,
+            # *absolute* objective: aim to sample X<=ref_thresh
+            ref_thresh=None,
+            # *quantile* objective (if ref_thresh==None): aim to sample ref_alpha-tail
+            ref_alpha=0.05,
+            # minimum samples to use for update step
+            # (fraction for percent; int for absolute)
+            min_batch_update=0.2,
+            # when filtering R<q, add samples with R==q if update-samples are too few
+            force_min_samples=True,
+            # phi <- (1-soft_update)*new_phi + soft_update*current_phi
+            soft_update=0,
+            # quantile_estimate <- (1-soft_q_update)*estimate + soft_q_update*prev_estimate
+            soft_q_update=0,
+    ):
         self.title = title
         self.default_dist_titles = None
         self.default_samp_titles = None
@@ -212,7 +246,7 @@ class CEM:
             self.batch_count, self.sample_count, self.update_count, self.ref_scores,
             self.sample_dist, self.sampled_data, self.weights, self.is_reference,
             self.scores, self.ref_quantile, self.internal_quantile, self.selected_samples,
-            self.n_update_samples
+            self.n_update_samples, self.optim_mode
         )
         with open(filename, 'wb') as h:
             pkl.dump(obj, h)
@@ -227,7 +261,7 @@ class CEM:
         self.batch_count, self.sample_count, self.update_count, self.ref_scores, \
         self.sample_dist, self.sampled_data, self.weights, self.is_reference, \
         self.scores, self.ref_quantile, self.internal_quantile, self.selected_samples, \
-        self.n_update_samples = obj
+        self.n_update_samples, self.optim_mode = obj
 
     def is_original_dist(self, shuffle=True):
         if not shuffle:
