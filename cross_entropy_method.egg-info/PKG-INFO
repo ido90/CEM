@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cross-entropy-method
-Version: 0.0.9
+Version: 0.1.0
 Summary: The Cross-Entropy Method for either rare-event sampling or optimization.
 Home-page: https://github.com/ido90/CEM
 Author: Ido Greenberg
@@ -35,15 +35,28 @@ On top of the standard CEM, we also support a non-stationary score function *R*.
 This affects the reference distribution of scores and thus the quantile threshold *q* (if specified as a quantile).
 Thus, we have to repeatedly re-estimate *q*, using importance-sampling correction to compensate for the CEM distributional shift.
 
-In our [separate work](https://github.com/ido90/CeSoR), we demonstrate the use of the CEM for the more realistic problem of sampling high-risk environment-conditions in risk-averse reinforcement learning. There, *D_p* determines the distribution of the environment-conditions, *p0* corresponds to the original distribution (or test distribution), and *R(x; agent)* is the return function of the agent given the conditions *x*.
+#### Application to risk-averse reinforcement learning
+
+In our separate work (available in [code](https://github.com/ido90/CeSoR) and as a [NeurIPS paper](https://arxiv.org/abs/2205.05138), with Yinlam Chow, Mohammad Ghavamzadeh and Shie Mannor), we demonstrate the use of the CEM for the more realistic problem of sampling high-risk environment-conditions in risk-averse reinforcement learning. There, *D_p* determines the distribution of the environment-conditions, *p0* corresponds to the original distribution (or test distribution), and *R(x; agent)* is the return function of the agent given the conditions *x*.
 Note that since the agent evolves with the training, the score function is indeed non-stationary.
 
-### Cite this repo
+### Cite us
+#### This repo: non-stationary cross entropy method
 ```
 @misc{cross_entropy_method,
   title={Cross Entropy Method with Non-stationary Score Function},
   author={Ido Greenberg},
   howpublished={\url{https://pypi.org/project/cross-entropy-method/}},
+  year={2022}
+}
+```
+
+#### Application to risk-averse reinforcement learning
+```
+@inproceedings{cesor,
+  title={Efficient Risk-Averse Reinforcement Learning},
+  author={Ido Greenberg and Yinlam Chow and Mohammad Ghavamzadeh and Shie Mannor},
+  booktitle={Advances in Neural Information Processing Systems},
   year={2022}
 }
 ```
