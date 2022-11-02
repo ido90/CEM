@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cross-entropy-method
-Version: 0.1.0
+Version: 0.1.1
 Summary: The Cross-Entropy Method for either rare-event sampling or optimization.
 Home-page: https://github.com/ido90/CEM
 Author: Ido Greenberg
@@ -16,14 +16,20 @@ License-File: LICENSE
 # The Cross Entropy Method
 
 The [Cross Entropy Method](http://web.mit.edu/6.454/www/www_fall_2003/gew/CEtutorial.pdf) (CE or CEM) is an approach for optimization or rare-event sampling in a given class of distributions *{D_p}* and a score function *R(x)*.
-* In its sampling version, it is given a reference *p0* and aims to sample from the tail of the distribution *x ~ (D_p0 | R(x)<q)*, where *q* is defined as either a numeric value *q* or a quantile *alpha* (where *q=q_alpha(R)*).
+* In its sampling version, it is given a reference *p0* and aims to sample from the tail of the distribution *x ~ (D_p0 | R(x)<q)*, where *q* is defined as either a numeric value *q* or a quantile *alpha* (i.e. *q=q_alpha(R)*).
 * In its optimization version, it aims to find *argmin_x{R(x)}*.
+
+### Why to use?
+
+The sampling version is particularly useful for over-sampling of certain properties. For example, you have a parametric pipeline that generates examples for learning, and you wish to learn more from examples that satisfy X, but you're not sure how to generate such ones. The CEM will learn how to tune the parameters of your pipeline to achieve that, while you can easily control the extremety level.
+
+### How to use?
+
+**Installation**: `pip install cross-entropy-method`.
 
 The exact implementation of the CEM depends on the distributions family *{D_p}* as defined in the problem.
 This repo provides a general implementation as an abstract class, where a concrete use requires writing a simple, small inherited class.
 The attached [`tutorial.ipynb`](https://github.com/ido90/CEM/blob/master/tutorial.ipynb) provides a more detailed background on the CEM and on this package, along with usage examples.
-
-**Installation**: `pip install cross-entropy-method`.
 
 | <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_quantile_sampling.png" width="260"> <img src="https://idogreenberg.neocities.org/linked_images/CEM_toy_optimization.png" width="260"> |
 | :--: |
