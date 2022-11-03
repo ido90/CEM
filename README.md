@@ -6,7 +6,7 @@ The [Cross Entropy Method](http://web.mit.edu/6.454/www/www_fall_2003/gew/CEtuto
 
 ### Why to use?
 
-The sampling version is particularly useful for over-sampling of certain properties. For example, you have a parametric pipeline that generates examples for learning, and you wish to learn more from examples that satisfy X, but you're not sure how to generate such ones. The CEM will learn how to tune the parameters of your pipeline to achieve that, while you can easily control the extremety level.
+The sampling version is particularly useful for over-sampling of certain properties. For example, you have a parametric pipeline that generates examples for learning, and you wish to learn more from examples that satisfy X, but you're not sure how to generate such ones. The CEM will learn how to tune the parameters of your pipeline to achieve that, while you can easily control the extremety level. See below a concrete example for risk averse reinforcement learning.
 
 ### How to use?
 
